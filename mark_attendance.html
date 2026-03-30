@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark Attendance - Staff Attendance System</title>
+    <link rel="stylesheet" href="css/style.css?v=6">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="dashboard.html" class="nav-brand">
+            <i class="fas fa-graduation-cap"></i> EduAttend
+        </a>
+        <div class="nav-user">
+            <span id="user-name">Staff Member</span>
+            <button id="logout-btn" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <h2>Mark Subject Attendance</h2>
+                <p style="color: var(--text-secondary); margin-top: 5px;">Record attendance for specific subjects. Unmarked students remain blue.</p>
+            </div>
+            <a href="dashboard.html" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+
+        <div class="filter-bar" style="flex-wrap: wrap;">
+            <div>
+                <label for="attendance-date" style="display:block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Select Date</label>
+                <input type="date" id="attendance-date" class="form-group" style="margin-bottom:0; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color);">
+            </div>
+            <div style="flex-grow: 1; min-width: 250px;">
+                <label for="subject-select" style="display:block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Select Subject</label>
+                <select id="subject-select" class="form-group" style="margin-bottom:0; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); width: 100%;">
+                    <option value="">Loading subjects...</option>
+                </select>
+            </div>
+            <div style="flex-grow: 1; min-width: 150px;">
+                <label for="period-select" style="display:block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Select Period</label>
+                <select id="period-select" class="form-group" style="margin-bottom:0; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); width: 100%;">
+                    <option value="">Choose...</option>
+                    <option value="1st">1st Period</option>
+                    <option value="2nd">2nd Period</option>
+                    <option value="3rd">3rd Period</option>
+                    <option value="4th">4th Period</option>
+                    <option value="5th">5th Period</option>
+                    <option value="6th">6th Period</option>
+                </select>
+            </div>
+            <button id="load-students-btn" class="btn btn-primary" style="width: auto;">
+                <i class="fas fa-sync-alt" style="margin-right: 8px;"></i> Load Class
+            </button>
+        </div>
+
+        <div id="mark-msg" class="messages"></div>
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            Loading students...
+        </div>
+
+        <div class="table-container" id="students-table-container" style="display: none;">
+            <form id="attendance-form">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Roll Number</th>
+                            <th>Student Name</th>
+                            <th>Status (Toggle to clear)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="students-list">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+                <div style="padding: 20px; text-align: right; border-top: 1px solid var(--border-color); background: #f9fafb;">
+                    <div style="display: inline-block; margin-right: 20px; font-size: 14px; color: var(--text-secondary);">
+                        <strong>Legend:</strong> 
+                        <span style="color: #1d4ed8; margin-left:10px;"><i class="fas fa-circle"></i> Unmarked</span>
+                        <span style="color: #065f46; margin-left:10px;"><i class="fas fa-circle"></i> Present</span>
+                        <span style="color: #991b1b; margin-left:10px;"><i class="fas fa-circle"></i> Absent</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="markAll('Present')" style="margin-right: 10px;">Mark All Present</button>
+                    <button type="button" class="btn btn-secondary" onclick="markAll('Absent')" style="margin-right: 10px;">Mark All Absent</button>
+                    <button type="submit" class="btn btn-primary" id="submit-attendance-btn">Save Attendance</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const dateInput = document.getElementById('attendance-date');
+            const subjectSelect = document.getElementById('subject-select');
+            const periodSelect = document.getElementById('period-select');
+            
+            // Set today's date as default
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.value = today;
+
+            // Load Subjects
+            const subsRes = await ApiService.get('get_subjects.php');
+            if(subsRes.success) {
+                subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+                subsRes.subjects.forEach(sub => {
+                    subjectSelect.innerHTML += `<option value="${sub.id}">${sub.name} (${sub.code})</option>`;
+                });
+            } else {
+                subjectSelect.innerHTML = '<option value="">Failed to load subjects</option>';
+            }
+
+            const loadBtn = document.getElementById('load-students-btn');
+            const tbody = document.getElementById('students-list');
+            const tableContainer = document.getElementById('students-table-container');
+
+            loadBtn.addEventListener('click', loadStudents);
+
+            async function loadStudents() {
+                const date = dateInput.value;
+                const subjectId = subjectSelect.value;
+                const period = periodSelect.value;
+                
+                if(!date) return alert('Please select a date');
+                if(!subjectId) return alert('Please select a subject');
+                if(!period) return alert('Please select a period');
+
+                UI.toggleLoading(true);
+                tableContainer.style.display = 'none';
+
+                // Try to load existing attendance first to pre-fill
+                const res = await ApiService.get(`get_attendance.php?date=${date}&subject_id=${subjectId}&period=${period}`);
+                
+                UI.toggleLoading(false);
+
+                if (res.success) {
+                    tbody.innerHTML = '';
+                    
+                    if(res.records.length === 0) {
+                        UI.showMessage('mark-msg', 'No students found in the database.', 'error');
+                        return;
+                    }
+
+                    if(res.isMarked) {
+                        UI.showMessage('mark-msg', 'Attendance was already marked for this date and subject. You can update it below.', 'success');
+                    } else {
+                        UI.showMessage('mark-msg', 'Ready to mark new attendance. By default, students are unmarked (Blue).', 'success');
+                    }
+
+                    res.records.forEach(student => {
+                        // In the new system, we don't default to present. Null stays null (unmarked).
+                        const status = student.status;
+                        
+                        const tr = document.createElement('tr');
+                        tr.className = status ? "student-row" : "student-row unmarked-row";
+                        if (status) {
+                            previousRadioValues[`student_${student.id}`] = status;
+                        }
+                        tr.innerHTML = `
+                            <td>${student.roll_number}</td>
+                            <td><strong>${student.name}</strong> <span style="font-size:12px;color:#6b7280;margin-left:5px;">IT 3rd Yr</span></td>
+                            <td>
+                                <div class="radio-group">
+                                    <input type="radio" id="p_${student.id}" name="student_${student.id}" value="Present" ${status === 'Present' ? 'checked' : ''} onclick="handleToggle(this)">
+                                    <label for="p_${student.id}" class="status-btn"><i class="fas fa-check"></i> Present</label>
+                                    
+                                    <input type="radio" id="a_${student.id}" name="student_${student.id}" value="Absent" ${status === 'Absent' ? 'checked' : ''} onclick="handleToggle(this)">
+                                    <label for="a_${student.id}" class="status-btn"><i class="fas fa-times"></i> Absent</label>
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+
+                    tableContainer.style.display = 'block';
+                } else {
+                    UI.showMessage('mark-msg', res.message || 'Error loading students', 'error');
+                }
+            }
+
+            // Global function to handle custom radio toggle logic (Clear if already selected)
+            let previousRadioValues = {};
+            window.handleToggle = function(radio) {
+                const name = radio.name;
+                const val = radio.value;
+                const row = radio.closest('.student-row');
+                
+                if (previousRadioValues[name] === val) {
+                    // It was already checked, uncheck it
+                    radio.checked = false;
+                    previousRadioValues[name] = null;
+                    row.classList.add('unmarked-row');
+                } else {
+                    previousRadioValues[name] = val;
+                    row.classList.remove('unmarked-row');
+                }
+            };
+
+            // Global function to mark all
+            window.markAll = function(status) {
+                const radios = document.querySelectorAll(`input[type="radio"][value="${status}"]`);
+                radios.forEach(r => {
+                    r.checked = true;
+                    previousRadioValues[r.name] = r.value;
+                    // Also update the visual row styling
+                    const row = r.closest('.student-row');
+                    if (row) {
+                        row.classList.remove('unmarked-row');
+                    }
+                });
+            };
+
+            // Submit logic
+            const form = document.getElementById('attendance-form');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                console.log("Save button clicked!");
+                const date = dateInput.value;
+                const subjectId = subjectSelect.value;
+                const period = periodSelect.value;
+                const btn = document.getElementById('submit-attendance-btn');
+                
+                if(!period) return alert('Please select a period');
+                
+                // Collect attendance data
+                const attendanceData = {};
+                const radios = document.querySelectorAll('input[type="radio"]:checked');
+                console.log("Found checked radios:", radios.length);
+                radios.forEach(radio => {
+                    const studentId = radio.name.replace('student_', '');
+                    attendanceData[studentId] = radio.value;
+                });
+
+                // Check for unmarked students
+                let unmarkedStudents = [];
+                const rows = document.querySelectorAll('.student-row');
+                console.log("Total student rows found for validation:", rows.length);
+                rows.forEach(row => {
+                    const checkedRadio = row.querySelector('input[type="radio"]:checked');
+                    if (!checkedRadio) {
+                        const studentName = row.querySelector('td:nth-child(2) strong').textContent;
+                        unmarkedStudents.push(studentName);
+                    }
+                });
+                console.log("Unmarked students discovered:", unmarkedStudents);
+
+                if (unmarkedStudents.length > 0) {
+                    console.log("Attempting to show alert with unmarked students...");
+                    alert("Please mark attendance for the following students before saving:\n\n- " + unmarkedStudents.join('\n- '));
+                    return;
+                }
+
+                btn.textContent = 'Saving...';
+                btn.disabled = true;
+
+                const res = await ApiService.post('submit_attendance.php', {
+                    date: date,
+                    subject_id: subjectId,
+                    period: period,
+                    attendance: attendanceData
+                });
+
+                btn.textContent = 'Save Attendance';
+                btn.disabled = false;
+
+                if(res.success) {
+                    UI.showMessage('mark-msg', 'Attendance saved successfully!', 'success');
+                    window.scrollTo(0,0);
+                } else {
+                    UI.showMessage('mark-msg', res.message || 'Failed to save', 'error');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

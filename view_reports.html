@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Reports - Staff Attendance System</title>
+    <link rel="stylesheet" href="css/style.css?v=9">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Modern report styles */
+        .report-matrix-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .report-matrix-table th { background: #f8fafc; text-align: center; font-size: 12px; padding: 12px; border-bottom: 2px solid #e2e8f0; }
+        .report-matrix-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; text-align: center; }
+        .report-matrix-table td:first-child, .report-matrix-table th:first-child { text-align: left; background: #fff; position: sticky; left: 0; z-index: 10; }
+        
+        .pct-badge { padding: 4px 8px; border-radius: 9999px; font-weight: 600; font-size: 11px; display: inline-block; min-width: 45px; }
+        .pct-high { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        .pct-low { background-color: #fef2f2; color: #dc2626; border: 1px solid #fecaca; box-shadow: 0 0 8px rgba(220, 38, 38, 0.1); }
+        .row-shortage { background-color: #fff1f2 !important; transition: 0.3s; }
+        .row-shortage:hover td { background-color: #ffe4e6 !important; }
+        .row-shortage td:first-child { border-left: 4px solid #ef4444; }
+
+        .report-type-selector { margin-bottom: 20px; display: flex; gap: 10px; padding: 5px; background: #f1f5f9; border-radius: 12px; width: fit-content; }
+        .type-btn { padding: 10px 20px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 14px; color: #64748b; background: transparent; }
+        .type-btn.active { background: white; color: #4f46e5; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        
+        .shortage-tag { color: #fff; font-size: 10px; font-weight: 800; background: #ef4444; padding: 3px 6px; border-radius: 6px; margin-left: 8px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); vertical-align: middle; }
+        
+        @media print {
+            .no-print { display: none !important; }
+            .container { max-width: 100%; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar no-print">
+        <a href="dashboard.html" class="nav-brand">
+            <i class="fas fa-graduation-cap"></i> EduAttend
+        </a>
+        <div class="nav-user">
+            <span id="user-name">Staff Member</span>
+            <button id="logout-btn" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header no-print">
+            <div>
+                <h2 id="page-title">Subject Class Reports</h2>
+                <p style="color: var(--text-secondary); margin-top: 5px;">View daily or consolidated monthly attendance records.</p>
+            </div>
+            <a href="dashboard.html" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+
+        <div class="report-type-selector no-print">
+            <button class="type-btn active" id="type-daily">Daily Subject Report</button>
+            <button class="type-btn" id="type-monthly">Monthly Consolidated</button>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar no-print" id="filter-bar" style="flex-wrap: wrap;">
+            <div id="date-filter">
+                <label for="report-date" style="display:block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Select Date</label>
+                <input type="date" id="report-date" class="form-group" style="margin-bottom:0; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color);">
+            </div>
+            <div id="subject-filter" style="flex-grow: 1; min-width: 250px;">
+                <label for="subject-select" style="display:block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Select Subject</label>
+                <select id="subject-select" class="form-group" style="margin-bottom:0; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); width: 100%;">
+                    <option value="">Loading subjects...</option>
+                </select>
+            </div>
+            <div id="period-filter" style="flex-grow: 1; min-width: 150px;">
+                <label for="period-select" style="display:block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Select Period</label>
+                <select id="period-select" class="form-group" style="margin-bottom:0; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); width: 100%;">
+                    <option value="">Choose...</option>
+                    <option value="1st">1st Period</option>
+                    <option value="2nd">2nd Period</option>
+                    <option value="3rd">3rd Period</option>
+                    <option value="4th">4th Period</option>
+                    <option value="5th">5th Period</option>
+                    <option value="6th">6th Period</option>
+                </select>
+            </div>
+            <div id="month-filter" style="display: none; flex-grow: 1; min-width: 300px; gap: 15px; flex-direction: row; align-items: flex-end;">
+                <div style="flex-grow: 1;">
+                    <label for="month-select" style="display:block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Select Month</label>
+                    <select id="month-select" class="form-group" style="margin-bottom:0; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); width: 100%;">
+                        <option value="1">January</option>
+                        <option value="2" selected>February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
+                <div style="flex-grow: 1;">
+                    <label for="year-select" style="display:block; margin-bottom: 5px; font-weight: 500; font-size: 14px;">Select Year</label>
+                    <select id="year-select" class="form-group" style="margin-bottom:0; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); width: 100%;">
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027">2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                    </select>
+                </div>
+            </div>
+            <button id="view-report-btn" class="btn btn-primary" style="width: auto;">
+                <i class="fas fa-search" style="margin-right: 8px;"></i> View Report
+            </button>
+            <button onclick="window.print()" class="btn btn-secondary print-btn" style="width: auto; margin-left:10px;">
+                <i class="fas fa-print" style="margin-right: 8px;"></i> Print
+            </button>
+        </div>
+
+        <div id="report-msg" class="messages no-print"></div>
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            Loading report...
+        </div>
+
+        <!-- Summary Statistics (Shared) -->
+        <div id="summary-stats" class="dashboard-grid" style="display: none; margin-bottom: 20px;">
+            <div class="stat-card" style="padding: 20px;">
+                <h3 style="color: var(--text-secondary); font-size: 14px;">Total Students</h3>
+                <div id="stat-total" style="font-size: 32px; font-weight: 700; color: var(--text-primary); margin-top: 10px;">0</div>
+            </div>
+            <div class="stat-card" style="padding: 20px; border-bottom: 4px solid var(--secondary-color);">
+                <h3 id="stat-label-2" style="color: var(--text-secondary); font-size: 14px;">Present</h3>
+                <div id="stat-value-2" style="font-size: 32px; font-weight: 700; color: var(--secondary-color); margin-top: 10px;">0</div>
+            </div>
+            <div class="stat-card" style="padding: 20px; border-bottom: 4px solid var(--danger-color);">
+                <h3 id="stat-label-3" style="color: var(--text-secondary); font-size: 14px;">Absent</h3>
+                <div id="stat-value-3" style="font-size: 32px; font-weight: 700; color: var(--danger-color); margin-top: 10px;">0</div>
+            </div>
+            <div class="stat-card" style="padding: 20px; border-bottom: 4px solid #3b82f6;">
+                <h3 id="stat-label-4" style="color: var(--text-secondary); font-size: 14px;">Unmarked</h3>
+                <div id="stat-value-4" style="font-size: 32px; font-weight: 700; color: #3b82f6; margin-top: 10px;">0</div>
+            </div>
+        </div>
+
+        <!-- Daily Report Table -->
+        <div class="table-container" id="daily-table-container" style="display: none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Roll Number</th>
+                        <th>Student Name</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="report-list"></tbody>
+            </table>
+        </div>
+
+        <!-- Monthly Matrix Table -->
+        <div class="table-container" id="monthly-table-container" style="display: none; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden;">
+            <table class="report-matrix-table">
+                <thead id="monthly-headers"></thead>
+                <tbody id="monthly-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            let currentMode = 'daily';
+            const dateInput = document.getElementById('report-date');
+            const subjectSelect = document.getElementById('subject-select');
+            const periodSelect = document.getElementById('period-select');
+            const viewBtn = document.getElementById('view-report-btn');
+            const pageTitle = document.getElementById('page-title');
+            
+            // UI elements
+            const dailyFilters = ['date-filter', 'subject-filter', 'period-filter'];
+            const monthlyFilters = ['month-filter'];
+            const dailyTable = document.getElementById('daily-table-container');
+            const monthlyTable = document.getElementById('monthly-table-container');
+            const summaryStats = document.getElementById('summary-stats');
+
+            // Default values
+            dateInput.value = new Date().toISOString().split('T')[0];
+            
+            // Set dynamic defaults for monthly report
+            const now = new Date();
+            const currMonth = (now.getMonth() + 1).toString();
+            const currYear = now.getFullYear().toString();
+            
+            // Wait for elements to be fully ready
+            setTimeout(() => {
+                const mSel = document.getElementById('month-select');
+                const ySel = document.getElementById('year-select');
+                if(mSel) mSel.value = currMonth;
+                if(ySel) ySel.value = currYear;
+            }, 100);
+
+            // Toggle Modes
+            document.getElementById('type-daily').addEventListener('click', () => setMode('daily'));
+            document.getElementById('type-monthly').addEventListener('click', () => setMode('monthly'));
+
+            function setMode(mode) {
+                currentMode = mode;
+                document.getElementById('type-daily').classList.toggle('active', mode === 'daily');
+                document.getElementById('type-monthly').classList.toggle('active', mode === 'monthly');
+                
+                dailyFilters.forEach(id => document.getElementById(id).style.display = (mode === 'daily' ? 'block' : 'none'));
+                monthlyFilters.forEach(id => document.getElementById(id).style.display = (mode === 'monthly' ? 'flex' : 'none'));
+                
+                pageTitle.textContent = mode === 'daily' ? 'Subject Class Reports' : 'Consolidated Monthly Report';
+                
+                dailyTable.style.display = 'none';
+                monthlyTable.style.display = 'none';
+                summaryStats.style.display = 'none';
+                document.getElementById('report-msg').style.display = 'none';
+            }
+
+            // Load Subjects
+            const subsRes = await ApiService.get('get_subjects.php');
+            if(subsRes.success) {
+                subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+                subsRes.subjects.forEach(sub => {
+                    subjectSelect.innerHTML += `<option value="${sub.id}">${sub.name} (${sub.code})</option>`;
+                });
+                window.subjects = subsRes.subjects;
+            }
+
+            viewBtn.addEventListener('click', () => {
+                if (currentMode === 'daily') loadDailyReport();
+                else loadMonthlyReport();
+            });
+
+            async function loadDailyReport() {
+                const date = dateInput.value;
+                const subjectId = subjectSelect.value;
+                const period = periodSelect.value;
+                
+                if(!date || !subjectId || !period) return alert('Please fill all filters');
+
+                UI.toggleLoading(true);
+                const res = await ApiService.get(`get_attendance.php?date=${date}&subject_id=${subjectId}&period=${period}&t=${Date.now()}`);
+                UI.toggleLoading(false);
+
+                if (res.success) {
+                    const tbody = document.getElementById('report-list');
+                    tbody.innerHTML = '';
+                    
+                    if(!res.isMarked) UI.showMessage('report-msg', 'Note: Attendance not yet marked for this class. Showing roster.', 'success');
+                    else document.getElementById('report-msg').style.display = 'none';
+
+                    let p=0, a=0, u=0;
+                    res.records.forEach(s => {
+                        const tr = document.createElement('tr');
+                        let statusHtml = '';
+                        if(s.status === 'Present') { p++; statusHtml = '<span class="badge badge-present"><i class="fas fa-check"></i> Present</span>'; }
+                        else if(s.status === 'Absent') { a++; statusHtml = '<span class="badge badge-absent"><i class="fas fa-times"></i> Absent</span>'; }
+                        else { u++; statusHtml = '<span class="badge badge-none"><i class="fas fa-circle-notch"></i> Unmarked</span>'; }
+
+                        tr.innerHTML = `
+                            <td>${s.roll_number}</td>
+                            <td><strong>${s.name}</strong> <span style="font-size:11px;color:#6b7280;margin-left:5px;">IT 3rd Yr</span></td>
+                            <td>${statusHtml}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+
+                    updateStats(res.records.length, p, a, u, false);
+                    dailyTable.style.display = 'block';
+                }
+            }
+
+            async function loadMonthlyReport() {
+                const month = document.getElementById('month-select').value;
+                const year = document.getElementById('year-select').value;
+
+                UI.toggleLoading(true);
+                const res = await ApiService.get(`get_monthly_report.php?month=${month}&year=${year}&t=${Date.now()}`);
+                UI.toggleLoading(false);
+
+                if (res.success) {
+                    const head = document.getElementById('monthly-headers');
+                    const body = document.getElementById('monthly-list');
+                    
+                    // Headers
+                    head.innerHTML = `<tr><th>Student Name</th>${res.subjects.map(s => `<th>${s.code}</th>`).join('')}<th>Overall %</th></tr>`;
+                    
+                    // Rows
+                    body.innerHTML = '';
+                    res.students.forEach(s => {
+                        const tr = document.createElement('tr');
+                        const isShortage = s.overall_percentage < 75;
+                        if(isShortage) tr.classList.add('row-shortage');
+                        
+                        const shortageHtml = isShortage ? '<span class="shortage-tag">SHORTAGE</span>' : '';
+                        let subCols = '';
+                        res.subjects.forEach(sub => {
+                            const pct = s.subjects[sub.id] || 0;
+                            subCols += `<td><span class="pct-badge ${getPctClass(pct)}" style="font-size:10px;">${pct}%</span></td>`;
+                        });
+                        
+                        tr.innerHTML = `
+                            <td style="text-align:left;"><strong>${s.name}</strong><br><small style="color:#64748b">${s.roll_number}</small> ${shortageHtml}</td>
+                            ${subCols}
+                            <td style="background:#f8fafc; font-weight:bold;"><span class="pct-badge ${getPctClass(s.overall_percentage)}">${s.overall_percentage}%</span></td>
+                        `;
+                        body.appendChild(tr);
+                    });
+
+                    updateStats(res.stats.total_students, res.stats.avg_attendance + '%', res.stats.shortage_count, null, true);
+                    monthlyTable.style.display = 'block';
+                }
+            }
+
+            function updateStats(total, l2, l3, l4, isMonthly) {
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-label-2').textContent = isMonthly ? 'Avg Performance' : 'Present';
+                document.getElementById('stat-value-2').textContent = l2;
+                document.getElementById('stat-label-3').textContent = isMonthly ? 'Students with Shortage' : 'Absent';
+                document.getElementById('stat-value-3').textContent = l3;
+                document.getElementById('stat-value-3').style.color = isMonthly ? '#dc2626' : 'var(--danger-color)';
+                
+                document.getElementById('stat-label-4').parentElement.style.display = isMonthly ? 'none' : 'block';
+                if (!isMonthly) document.getElementById('stat-value-4').textContent = l4;
+                
+                summaryStats.style.display = 'grid';
+            }
+
+            function getPctClass(pct) {
+                if (pct >= 75) return 'pct-high';
+                return 'pct-low';
+            }
+        });
+    </script>
+</body>
+</html>
